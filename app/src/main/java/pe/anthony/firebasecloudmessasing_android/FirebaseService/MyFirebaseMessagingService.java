@@ -1,23 +1,33 @@
 package pe.anthony.firebasecloudmessasing_android.FirebaseService;
 
+import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.drawable.Drawable;
 import android.media.RingtoneManager;
 import android.net.Uri;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.support.annotation.RequiresApi;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
+import com.squareup.picasso.Picasso;
+import com.squareup.picasso.Target;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import pe.anthony.firebasecloudmessasing_android.Config.Config;
+import pe.anthony.firebasecloudmessasing_android.Helper.NotificationHelperToAPI26AndHiger;
 import pe.anthony.firebasecloudmessasing_android.MainActivity;
 import pe.anthony.firebasecloudmessasing_android.R;
 
@@ -27,8 +37,54 @@ import pe.anthony.firebasecloudmessasing_android.R;
 
 public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
+    String NOTIFICATION_BUILDER_ID = "FCM_Picture";
     private static final String TAG = "FirebaseMessageService";
     Bitmap bitmap;
+
+    Target target =  new Target() {
+        @Override
+        public void onBitmapLoaded(Bitmap bitmap, Picasso.LoadedFrom from) {
+            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                //we will create Notification Channel for API level 26 and higer
+                showNotificationWithImageLevel26(bitmap);
+            else
+                sendNotificationWithImage(bitmap);
+        }
+
+        @Override
+        public void onBitmapFailed(Drawable errorDrawable) {
+
+        }
+
+        @Override
+        public void onPrepareLoad(Drawable placeHolderDrawable) {
+
+        }
+    };
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    private void showNotificationWithImageLevel26(Bitmap bitmap) {
+        NotificationHelperToAPI26AndHiger helper = new NotificationHelperToAPI26AndHiger(getBaseContext());
+
+        Notification.Builder builder =  helper.getChannel(Config.title,Config.message,bitmap);
+        helper.getManager().notify(0,builder.build());
+    }
+
+    private void sendNotificationWithImage(Bitmap bitmap) {
+        NotificationCompat.BigPictureStyle style =  new NotificationCompat.BigPictureStyle();
+        style.setSummaryText(Config.message);
+        style.bigPicture(bitmap);
+
+        Uri defaultSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this,NOTIFICATION_BUILDER_ID)
+                .setSmallIcon(R.mipmap.ic_launcher_round)
+                .setContentTitle(Config.title)
+                .setAutoCancel(true)
+                .setSound(defaultSound)
+                .setStyle(style);
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        manager.notify(0 /* ID of notification */,notificationBuilder.build());
+    }
 
     /**
      * Called when message is received.
@@ -56,23 +112,43 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         if (remoteMessage.getNotification() != null) {
             Log.d(TAG, "Message Notification Body: " + remoteMessage.getNotification().getBody());
         }
-
+        if(remoteMessage.getData() != null)
+            getImage(remoteMessage);
         //The message which i send will have keys named [message, image, AnotherActivity] and corresponding values.
         //You can change as per the requirement.
 
         //message will contain the Push Message
-        String message = remoteMessage.getData().get("message");
+       // String message = remoteMessage.getData().get("message");
         //imageUri will contain URL of the image to be displayed with Notification
-        String imageUri = remoteMessage.getData().get("image");
+        //String imageUri = remoteMessage.getData().get("image");
         //If the key AnotherActivity has  value as True then when the user taps on notification, in the app AnotherActivity will be opened.
         //If the key AnotherActivity has  value as False then when the user taps on notification, in the app MainActivity will be opened.
-        String TrueOrFlase = remoteMessage.getData().get("AnotherActivity");
+        // String TrueOrFlase = remoteMessage.getData().get("AnotherActivity");
 
         //To get a Bitmap image from the URL received
-        bitmap = getBitmapfromUrl(imageUri);
+        //bitmap = getBitmapfromUrl(imageUri);
 
-        sendNotification(message, bitmap, TrueOrFlase);
+        //sendNotification(message, bitmap, TrueOrFlase);
 
+    }
+
+    private void getImage(final RemoteMessage remoteMessage) {
+        //Configura mensaje y el titulo
+        Config.message = remoteMessage.getNotification().getBody();
+        Config.title = remoteMessage.getNotification().getTitle();
+        //Crea un hilo para guardar la imagen de notificacion
+        if(remoteMessage.getData() != null){
+            Handler handler = new Handler(Looper.getMainLooper());
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    //Configurar la imgagen de la notificacion
+                    Picasso.with(getApplicationContext())
+                            .load(remoteMessage.getData().get("image"))
+                            .into(target);
+                }
+            });
+        }
     }
 
 
@@ -105,7 +181,7 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
     /*
     *To get a Bitmap image from the URL received
-    * */
+
     public Bitmap getBitmapfromUrl(String imageUrl) {
         try {
             URL url = new URL(imageUrl);
@@ -122,5 +198,5 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             return null;
         }
     }
-
+   */
 }
